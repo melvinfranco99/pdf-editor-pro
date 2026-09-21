@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDF Editor Pro</title>
+<meta name="description" content="Edita, une, organiza, dibuja y resalta tus PDFs directamente en el navegador." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-icon">📄</span>
+    <span class="brand-name">PDF Editor Pro</span>
+  </div>
+  <div class="topbar-actions">
+    <label class="btn btn-primary" for="file-input">
+      <span>＋ Añadir PDF(s)</span>
+      <input id="file-input" type="file" accept="application/pdf" multiple hidden />
+    </label>
+    <button id="export-btn" class="btn btn-accent" disabled>⬇ Exportar PDF</button>
+    <button id="reset-btn" class="btn btn-ghost" disabled>Vaciar todo</button>
+  </div>
+</header>
+
+<main id="main-view">
+
+  <section id="dropzone" class="dropzone">
+    <div class="dropzone-inner">
+      <div class="dropzone-icon">📥</div>
+      <h1>Arrastra tus PDFs aquí</h1>
+      <p>o usa el botón <strong>“＋ Añadir PDF(s)”</strong> de arriba.</p>
+      <p class="dropzone-hint">Puedes subir varios archivos a la vez: se unirán en un solo documento que podrás reordenar, editar página por página, escribir, dibujar y resaltar libremente.</p>
+    </div>
+  </section>
+
+  <section id="grid-view" class="grid-view hidden">
+    <div class="grid-toolbar">
+      <p id="page-count" class="muted"></p>
+      <p class="muted small">Arrastra las miniaturas para reordenar. Pasa el ratón sobre una página para editarla, rotarla o eliminarla.</p>
+    </div>
+    <div id="page-grid" class="page-grid"></div>
+  </section>
+
+</main>
+
+<!-- Editor overlay -->
+<section id="editor" class="editor hidden">
+  <header class="editor-toolbar">
+    <button id="editor-close" class="btn btn-ghost">← Volver a la cuadrícula</button>
+
+    <div class="tool-group" role="group" aria-label="Herramientas">
+      <button class="tool-btn active" data-tool="select" title="Seleccionar / mover vista">🖐️ Vista</button>
+      <button class="tool-btn" data-tool="draw" title="Dibujar a mano alzada">✏️ Dibujar</button>
+      <button class="tool-btn" data-tool="highlight" title="Resaltador libre">🖍️ Resaltar</button>
+      <button class="tool-btn" data-tool="text" title="Insertar texto">🔤 Texto</button>
+    </div>
+
+    <div class="tool-group" id="color-group">
+      <span class="swatch active" data-color="#ffeb3b" style="background:#ffeb3b" title="Amarillo"></span>
+      <span class="swatch" data-color="#4caf50" style="background:#4caf50" title="Verde"></span>
+      <span class="swatch" data-color="#2196f3" style="background:#2196f3" title="Azul"></span>
+      <span class="swatch" data-color="#ff5252" style="background:#ff5252" title="Rojo"></span>
+      <span class="swatch" data-color="#ff9800" style="background:#ff9800" title="Naranja"></span>
+      <span class="swatch" data-color="#e040fb" style="background:#e040fb" title="Magenta"></span>
+      <span class="swatch" data-color="#212121" style="background:#212121" title="Negro"></span>
+      <input id="custom-color" type="color" value="#ffeb3b" title="Color personalizado" />
+    </div>
+
+    <div class="tool-group">
+      <label class="range-label">Grosor
+        <input id="width-range" type="range" min="1" max="40" value="8" />
+      </label>
+    </div>
+
+    <div class="tool-group">
+      <button id="undo-btn" class="btn btn-ghost" title="Deshacer último trazo">↺ Deshacer</button>
+      <button id="clear-page-btn" class="btn btn-ghost" title="Borrar todas las anotaciones de esta página">🗑 Limpiar página</button>
+    </div>
+
+    <div class="tool-group">
+      <button id="zoom-out" class="btn btn-ghost">－</button>
+      <span id="zoom-level" class="muted">100%</span>
+      <button id="zoom-in" class="btn btn-ghost">＋</button>
+    </div>
+  </header>
+
+  <p id="highlight-hint" class="highlight-hint hidden">
+    💡 Truco: con el resaltador, haz <strong>clic y mantenlo pulsado</strong>, luego pulsa
+    <strong>Ctrl + flecha</strong> (←→↑↓) para trazar una línea recta y calmada en esa dirección
+    mientras el botón siga presionado.
+  </p>
+
+  <div id="canvas-wrap" class="canvas-wrap">
+    <div id="canvas-stage" class="canvas-stage">
+      <canvas id="base-canvas"></canvas>
+      <canvas id="annotation-canvas"></canvas>
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- pdf.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- pdf-lib -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+<script src="app.js"></script>
+</body>
+</html>
