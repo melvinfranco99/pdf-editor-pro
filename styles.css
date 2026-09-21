@@ -349,6 +349,165 @@ button { font-family: inherit; }
   white-space: pre;
 }
 
+input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Signature modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 14, 0.6);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-panel {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 640px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  padding: 20px 24px 24px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.modal-header h2 { margin: 0; font-size: 1.2rem; }
+
+.modal-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.modal-tab {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.modal-tab:hover { color: var(--text); }
+.modal-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.modal-view.hidden { display: none; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sig-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.sig-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sig-card img {
+  width: 100%;
+  height: 70px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.sig-card-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sig-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sig-card-actions .btn { flex: 1; padding: 6px 10px; font-size: 0.82rem; }
+
+.sig-pad {
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  aspect-ratio: 560 / 200;
+  background: #fff;
+  border: 2px dashed #c7c9d1;
+  border-radius: 10px;
+  cursor: crosshair;
+  touch-action: none;
+  display: block;
+}
+
+.sig-auto-form { display: flex; flex-direction: column; gap: 12px; }
+.sig-auto-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.sig-auto-form input[type="text"] {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.sig-style-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sig-style-btn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.sig-style-btn.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(67,56,197,0.25); }
+
+.sig-auto-preview-wrap {
+  border: 2px dashed #c7c9d1;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.sig-auto-preview {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 640 / 140;
+  display: block;
+}
+
 /* Toast */
 .toast {
   position: fixed;

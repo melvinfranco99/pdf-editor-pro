@@ -6,6 +6,9 @@
 <title>PDF Editor Pro</title>
 <meta name="description" content="Edita, une, organiza, dibuja y resalta tus PDFs directamente en el navegador." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Great+Vibes&family=Pacifico&family=Caveat:wght@700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -39,7 +42,7 @@
   <section id="grid-view" class="grid-view hidden">
     <div class="grid-toolbar">
       <p id="page-count" class="muted"></p>
-      <p class="muted small">Arrastra las miniaturas para reordenar. Pasa el ratón sobre una página para editarla, rotarla o eliminarla.</p>
+      <p class="muted small">Arrastra las miniaturas para reordenar. Pasa el ratón sobre una página para editarla o eliminarla.</p>
     </div>
     <div id="page-grid" class="page-grid"></div>
   </section>
@@ -57,6 +60,7 @@
       <button class="tool-btn" data-tool="highlight" title="Resaltador libre">🖍️ Resaltar</button>
       <button class="tool-btn" data-tool="text" title="Insertar texto">🔤 Texto</button>
       <button class="tool-btn" data-tool="erase" title="Goma de borrar: haz clic o arrastra sobre una anotación para borrarla">🧽 Borrar</button>
+      <button class="tool-btn" data-tool="signature" title="Firmas: crea o inserta tu firma">✍️ Firma</button>
     </div>
 
     <div class="tool-group" id="color-group">
@@ -73,6 +77,18 @@
     <div class="tool-group">
       <label class="range-label"><span id="size-label">Grosor</span>
         <input id="size-range" type="range" min="1" max="40" value="8" />
+      </label>
+    </div>
+
+    <div class="tool-group">
+      <label class="range-label">Grosor texto
+        <input id="weight-range" type="range" min="0" max="2" step="0.1" value="0" disabled />
+      </label>
+    </div>
+
+    <div class="tool-group">
+      <label class="range-label"><span id="opacity-label">Transparencia</span>
+        <input id="opacity-range" type="range" min="5" max="100" value="100" />
       </label>
     </div>
 
@@ -95,6 +111,58 @@
     <div id="canvas-stage" class="canvas-stage">
       <canvas id="base-canvas"></canvas>
       <canvas id="annotation-canvas"></canvas>
+    </div>
+  </div>
+
+  <div id="signature-modal" class="modal-backdrop hidden">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2>Firmas</h2>
+        <button id="sig-close" class="icon-btn" title="Cerrar">✕</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-view="gallery">Mis firmas</button>
+        <button class="modal-tab" data-view="draw">✍️ Dibujar firma</button>
+        <button class="modal-tab" data-view="auto">🔤 Generar con mi nombre</button>
+      </div>
+
+      <div id="sig-view-gallery" class="modal-view">
+        <div id="sig-gallery" class="sig-gallery"></div>
+        <p id="sig-gallery-empty" class="muted small">Aún no tienes firmas guardadas. Crea una dibujándola o generándola con tu nombre.</p>
+      </div>
+
+      <div id="sig-view-draw" class="modal-view hidden">
+        <p class="muted small">Dibuja tu firma con el ratón (o el dedo en móvil).</p>
+        <canvas id="sig-pad" class="sig-pad" width="560" height="200"></canvas>
+        <div class="modal-actions">
+          <button id="sig-pad-clear" class="btn btn-ghost">Limpiar</button>
+          <button id="sig-pad-save" class="btn btn-primary">Guardar firma</button>
+        </div>
+      </div>
+
+      <div id="sig-view-auto" class="modal-view hidden">
+        <div class="sig-auto-form">
+          <label>Nombre
+            <input id="sig-name" type="text" placeholder="Ej: Melvin" />
+          </label>
+          <label>Apellidos
+            <input id="sig-lastname" type="text" placeholder="Ej: Franco Pedraza" />
+          </label>
+          <div class="sig-style-picker" id="sig-style-picker">
+            <button class="sig-style-btn active" data-font="'Dancing Script', cursive" style="font-family:'Dancing Script',cursive;">Estilo 1</button>
+            <button class="sig-style-btn" data-font="'Great Vibes', cursive" style="font-family:'Great Vibes',cursive;">Estilo 2</button>
+            <button class="sig-style-btn" data-font="'Pacifico', cursive" style="font-family:'Pacifico',cursive;">Estilo 3</button>
+            <button class="sig-style-btn" data-font="'Caveat', cursive" style="font-family:'Caveat',cursive;">Estilo 4</button>
+          </div>
+          <div class="sig-auto-preview-wrap">
+            <canvas id="sig-auto-preview" class="sig-auto-preview" width="640" height="140"></canvas>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="sig-auto-save" class="btn btn-primary">Guardar firma</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>
