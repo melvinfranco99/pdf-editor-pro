@@ -52,10 +52,11 @@
     <button id="editor-close" class="btn btn-ghost">← Volver a la cuadrícula</button>
 
     <div class="tool-group" role="group" aria-label="Herramientas">
-      <button class="tool-btn active" data-tool="select" title="Seleccionar / mover vista">🖐️ Vista</button>
+      <button class="tool-btn active" data-tool="select" title="Seleccionar / editar texto existente">🖐️ Vista</button>
       <button class="tool-btn" data-tool="draw" title="Dibujar a mano alzada">✏️ Dibujar</button>
       <button class="tool-btn" data-tool="highlight" title="Resaltador libre">🖍️ Resaltar</button>
       <button class="tool-btn" data-tool="text" title="Insertar texto">🔤 Texto</button>
+      <button class="tool-btn" data-tool="erase" title="Goma de borrar: haz clic o arrastra sobre una anotación para borrarla">🧽 Borrar</button>
     </div>
 
     <div class="tool-group" id="color-group">
@@ -70,13 +71,14 @@
     </div>
 
     <div class="tool-group">
-      <label class="range-label">Grosor
-        <input id="width-range" type="range" min="1" max="40" value="8" />
+      <label class="range-label"><span id="size-label">Grosor</span>
+        <input id="size-range" type="range" min="1" max="40" value="8" />
       </label>
     </div>
 
     <div class="tool-group">
-      <button id="undo-btn" class="btn btn-ghost" title="Deshacer último trazo">↺ Deshacer</button>
+      <button id="undo-btn" class="btn btn-ghost" title="Deshacer (Ctrl+Z)" disabled>↺ Deshacer</button>
+      <button id="redo-btn" class="btn btn-ghost" title="Rehacer (Ctrl+Y)" disabled>↻ Rehacer</button>
       <button id="clear-page-btn" class="btn btn-ghost" title="Borrar todas las anotaciones de esta página">🗑 Limpiar página</button>
     </div>
 
@@ -87,11 +89,7 @@
     </div>
   </header>
 
-  <p id="highlight-hint" class="highlight-hint hidden">
-    💡 Truco: con el resaltador, haz <strong>clic y mantenlo pulsado</strong>, luego pulsa
-    <strong>Ctrl + flecha</strong> (←→↑↓) para trazar una línea recta y calmada en esa dirección
-    mientras el botón siga presionado.
-  </p>
+  <p id="tool-hint" class="highlight-hint"></p>
 
   <div id="canvas-wrap" class="canvas-wrap">
     <div id="canvas-stage" class="canvas-stage">

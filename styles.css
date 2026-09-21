@@ -304,6 +304,10 @@ button { font-family: inherit; }
   background: #383018;
   color: #ffe082;
   font-size: 0.82rem;
+  line-height: 1.4;
+  min-height: calc(0.82rem * 1.4 * 2 + 16px);
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid #4a3f1e;
 }
 

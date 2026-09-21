@@ -20,6 +20,7 @@
   let currentTool = 'select';
   let currentColor = '#ffeb3b';
   let currentWidth = 8;
+  let currentTextSize = 18;
 
   let isPointerDown = false;
   let currentStroke = null;
@@ -27,6 +28,7 @@
   let autoDirection = null;
   let autoRAF = null;
   let activeTextEditor = null;
+  let editingIndex = -1;
 
   const AUTO_SPEED = 140; // canvas px/sec — "recto y con calma"
 
@@ -45,10 +47,12 @@
   const annotCanvas = document.getElementById('annotation-canvas');
   const canvasStage = document.getElementById('canvas-stage');
   const canvasWrap = document.getElementById('canvas-wrap');
-  const highlightHint = document.getElementById('highlight-hint');
-  const widthRange = document.getElementById('width-range');
+  const toolHint = document.getElementById('tool-hint');
+  const sizeLabel = document.getElementById('size-label');
+  const sizeRange = document.getElementById('size-range');
   const customColor = document.getElementById('custom-color');
   const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
   const clearPageBtn = document.getElementById('clear-page-btn');
   const zoomInBtn = document.getElementById('zoom-in');
   const zoomOutBtn = document.getElementById('zoom-out');
@@ -134,8 +138,46 @@
     docs[docId] = { name: file.name, pdfLibDoc, pdfjsDoc };
 
     for (let i = 0; i < pdfjsDoc.numPages; i++) {
-      pages.push({ id: uid('page'), docId, pageIndex: i, annotations: [] });
+      pages.push({ id: uid('page'), docId, pageIndex: i, annotations: [], undoStack: [], redoStack: [] });
     }
+  }
+
+  // ---------------- Undo / redo history (per page) ----------------
+  function snapshotAnnotations(page) {
+    return JSON.parse(JSON.stringify(page.annotations));
+  }
+
+  function pushHistory(page) {
+    page.undoStack.push(snapshotAnnotations(page));
+    if (page.undoStack.length > 50) page.undoStack.shift();
+    page.redoStack = [];
+    updateHistoryButtons();
+  }
+
+  function undo() {
+    if (isPointerDown) return;
+    const page = pages.find((p) => p.id === currentPageId);
+    if (!page || !page.undoStack.length) return;
+    page.redoStack.push(snapshotAnnotations(page));
+    page.annotations = page.undoStack.pop();
+    redrawAnnotations();
+    updateHistoryButtons();
+  }
+
+  function redo() {
+    if (isPointerDown) return;
+    const page = pages.find((p) => p.id === currentPageId);
+    if (!page || !page.redoStack.length) return;
+    page.undoStack.push(snapshotAnnotations(page));
+    page.annotations = page.redoStack.pop();
+    redrawAnnotations();
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    const page = pages.find((p) => p.id === currentPageId);
+    undoBtn.disabled = !page || !page.undoStack.length;
+    redoBtn.disabled = !page || !page.redoStack.length;
   }
 
   function updateViewState() {
@@ -315,6 +357,7 @@
     const page = pages.find((p) => p.id === pageId);
     if (!page) return;
     currentPageId = pageId;
+    editingIndex = -1;
     const doc = docs[page.docId];
     currentPdfPage = await doc.pdfjsDoc.getPage(page.pageIndex + 1);
 
@@ -329,6 +372,7 @@
     zoom = fitZoom;
     await renderEditorCanvas();
     updateHighlightHint();
+    updateHistoryButtons();
   }
 
   function closeEditor() {
@@ -356,7 +400,8 @@
     annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
     const page = pages.find((p) => p.id === currentPageId);
     if (!page) return;
-    renderAnnotationsList(annotCtx, page.annotations, currentViewport, currentScale);
+    const list = editingIndex === -1 ? page.annotations : page.annotations.filter((_, i) => i !== editingIndex);
+    renderAnnotationsList(annotCtx, list, currentViewport, currentScale);
     if (currentStroke) drawAnnotation(annotCtx, currentStroke, currentViewport, currentScale);
   }
 
@@ -374,13 +419,32 @@
   }
 
   function onPointerDown(e) {
-    if (currentTool === 'select') return;
-    e.preventDefault();
     const canvasPt = getCanvasPoint(e);
     const pdfPt = clampToPage(canvasToPdf(currentViewport, canvasPt));
 
+    if (currentTool === 'select') {
+      const page = pages.find((p) => p.id === currentPageId);
+      if (page) {
+        const idx = findTextAt(page, pdfPt);
+        if (idx !== -1) {
+          e.preventDefault();
+          editExistingText(page, idx);
+        }
+      }
+      return;
+    }
+
+    e.preventDefault();
+
     if (currentTool === 'text') {
       startTextInput(canvasPt, pdfPt);
+      return;
+    }
+
+    if (currentTool === 'erase') {
+      annotCanvas.setPointerCapture(e.pointerId);
+      isPointerDown = true;
+      eraseAt(pdfPt);
       return;
     }
 
@@ -392,8 +456,15 @@
   }
 
   function onPointerMove(e) {
-    if (!isPointerDown || !currentStroke || autoDirection) return;
+    if (!isPointerDown) return;
     const canvasPt = getCanvasPoint(e);
+
+    if (currentTool === 'erase') {
+      eraseAt(clampToPage(canvasToPdf(currentViewport, canvasPt)));
+      return;
+    }
+
+    if (!currentStroke || autoDirection) return;
     if (lastCanvasPoint) {
       const dx = canvasPt.x - lastCanvasPoint.x, dy = canvasPt.y - lastCanvasPoint.y;
       if (Math.hypot(dx, dy) < 1.5) return;
@@ -413,10 +484,70 @@
         currentStroke.points.push({ x: p.x + 0.05, y: p.y }); // visible dot on a plain click
       }
       const page = pages.find((p) => p.id === currentPageId);
-      if (page) page.annotations.push(currentStroke);
+      if (page) {
+        pushHistory(page);
+        page.annotations.push(currentStroke);
+      }
     }
     currentStroke = null;
     lastCanvasPoint = null;
+    redrawAnnotations();
+  }
+
+  // ---------------- Hit-testing (eraser + click-to-edit text) ----------------
+  function distToSegment(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  }
+
+  function estimateTextWidth(ann) {
+    annotCtx.save();
+    annotCtx.font = `${ann.size}px Helvetica, Arial, sans-serif`;
+    let max = 0;
+    ann.text.split('\n').forEach((line) => { max = Math.max(max, annotCtx.measureText(line).width); });
+    annotCtx.restore();
+    return max;
+  }
+
+  function hitTestText(ann, pt, pad) {
+    const w = estimateTextWidth(ann);
+    const lines = ann.text.split('\n').length;
+    const left = ann.x - pad, right = ann.x + w + pad;
+    const top = ann.topY + pad;
+    const bottom = ann.topY - lines * ann.size * 1.15 - pad;
+    return pt.x >= left && pt.x <= right && pt.y <= top && pt.y >= bottom;
+  }
+
+  function hitTestAnnotation(ann, pt, radius) {
+    if (ann.type === 'text') return hitTestText(ann, pt, radius * 0.5);
+    if (!ann.points || ann.points.length < 2) return false;
+    const thresh = radius + ann.width / 2;
+    for (let i = 1; i < ann.points.length; i++) {
+      if (distToSegment(pt, ann.points[i - 1], ann.points[i]) <= thresh) return true;
+    }
+    return false;
+  }
+
+  function findTextAt(page, pt) {
+    for (let i = page.annotations.length - 1; i >= 0; i--) {
+      const ann = page.annotations[i];
+      if (ann.type === 'text' && hitTestText(ann, pt, 3)) return i;
+    }
+    return -1;
+  }
+
+  function eraseAt(pdfPt) {
+    const page = pages.find((p) => p.id === currentPageId);
+    if (!page) return;
+    const radius = Math.max(currentWidth, 10);
+    const idx = page.annotations.findIndex((ann) => hitTestAnnotation(ann, pdfPt, radius));
+    if (idx === -1) return;
+    pushHistory(page);
+    page.annotations.splice(idx, 1);
     redrawAnnotations();
   }
 
@@ -475,14 +606,30 @@
   });
 
   // ---------------- Text tool ----------------
-  function startTextInput(canvasPt, pdfPt) {
+  function editExistingText(page, idx) {
+    const ann = page.annotations[idx];
+    currentTextSize = ann.size;
+    sizeLabel.textContent = 'Tamaño texto';
+    sizeRange.min = 8;
+    sizeRange.max = 60;
+    sizeRange.value = ann.size;
+    currentColor = ann.color;
+    customColor.value = ann.color;
+    document.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('active', s.dataset.color === ann.color));
+    editingIndex = idx;
+    redrawAnnotations();
+    const canvasPt = pdfToCanvas(currentViewport, { x: ann.x, y: ann.topY });
+    startTextInput(canvasPt, { x: ann.x, y: ann.topY }, { editIndex: idx, existingText: ann.text });
+  }
+
+  function startTextInput(canvasPt, pdfPt, editing) {
     if (activeTextEditor) return;
     const ta = document.createElement('textarea');
     ta.className = 'text-input-overlay';
     ta.rows = 1;
     ta.spellcheck = false;
-    const fontSizePdf = Math.max(6, currentWidth * 2.5);
-    const fontSizeCanvas = fontSizePdf * currentScale;
+    if (editing) ta.value = editing.existingText;
+    const fontSizeCanvas = currentTextSize * currentScale;
     ta.style.left = canvasPt.x + 'px';
     ta.style.top = canvasPt.y - fontSizeCanvas + 'px';
     ta.style.fontSize = fontSizeCanvas + 'px';
@@ -490,6 +637,7 @@
     canvasStage.appendChild(ta);
     activeTextEditor = ta;
     ta.focus();
+    if (editing) ta.setSelectionRange(ta.value.length, ta.value.length);
 
     let finished = false;
     const finish = (commit) => {
@@ -498,15 +646,35 @@
       const text = ta.value;
       ta.remove();
       activeTextEditor = null;
+      const page = pages.find((p) => p.id === currentPageId);
+      if (!page) return;
+      if (editing) {
+        editingIndex = -1;
+        updateHighlightHint();
+        if (!commit) { redrawAnnotations(); return; }
+        pushHistory(page);
+        if (text.trim()) {
+          page.annotations[editing.editIndex] = {
+            type: 'text', x: pdfPt.x, topY: pdfPt.y, text, color: currentColor, size: currentTextSize,
+          };
+        } else {
+          page.annotations.splice(editing.editIndex, 1);
+        }
+        redrawAnnotations();
+        return;
+      }
       if (commit && text.trim()) {
-        const page = pages.find((p) => p.id === currentPageId);
+        pushHistory(page);
         page.annotations.push({
-          type: 'text', x: pdfPt.x, topY: pdfPt.y, text, color: currentColor, size: fontSizePdf,
+          type: 'text', x: pdfPt.x, topY: pdfPt.y, text, color: currentColor, size: currentTextSize,
         });
         redrawAnnotations();
       }
     };
-    ta.addEventListener('blur', () => finish(true));
+    ta.addEventListener('blur', (e) => {
+      if (e.relatedTarget === sizeRange) return; // adjusting the size slider shouldn't close the editor
+      finish(true);
+    });
     ta.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Escape') finish(false);
@@ -514,17 +682,18 @@
     });
   }
 
-  // ---------------- Undo / clear ----------------
-  undoBtn.addEventListener('click', () => {
-    const page = pages.find((p) => p.id === currentPageId);
-    if (page && page.annotations.length) {
-      page.annotations.pop();
-      redrawAnnotations();
-    }
-  });
+  function updateActiveTextareaFontSize() {
+    if (!activeTextEditor) return;
+    activeTextEditor.style.fontSize = currentTextSize * currentScale + 'px';
+  }
+
+  // ---------------- Undo / redo / clear ----------------
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
   clearPageBtn.addEventListener('click', () => {
     const page = pages.find((p) => p.id === currentPageId);
     if (page && page.annotations.length && confirm('¿Borrar todas las anotaciones de esta página?')) {
+      pushHistory(page);
       page.annotations = [];
       redrawAnnotations();
     }
@@ -536,7 +705,7 @@
       document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       currentTool = btn.dataset.tool;
-      annotCanvas.style.cursor = currentTool === 'select' ? 'default' : 'crosshair';
+      annotCanvas.style.cursor = currentTool === 'select' ? 'default' : currentTool === 'erase' ? 'cell' : 'crosshair';
       updateHighlightHint();
     });
   });
@@ -553,10 +722,39 @@
     currentColor = customColor.value;
     document.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
   });
-  widthRange.addEventListener('input', () => { currentWidth = Number(widthRange.value); });
+  sizeRange.addEventListener('input', () => {
+    if (currentTool === 'text' || editingIndex !== -1) {
+      currentTextSize = Number(sizeRange.value);
+      updateActiveTextareaFontSize();
+    } else {
+      currentWidth = Number(sizeRange.value);
+    }
+  });
+  sizeRange.addEventListener('change', () => {
+    if (activeTextEditor) activeTextEditor.focus(); // resume typing after releasing the slider
+  });
+
+  const TOOL_HINTS = {
+    select: '💡 Haz clic sobre un texto ya insertado para editarlo y cambiar su tamaño. Usa <strong>Ctrl+Z</strong> para deshacer y <strong>Ctrl+Y</strong> para rehacer.',
+    draw: '✏️ Dibuja a mano alzada arrastrando el ratón. Cambia color y grosor arriba.',
+    highlight: '💡 Truco: con el resaltador, haz <strong>clic y mantenlo pulsado</strong>, luego pulsa <strong>Ctrl + flecha</strong> (←→↑↓) para trazar una línea recta y calmada en esa dirección mientras el botón siga presionado.',
+    text: '🔤 Haz clic donde quieras escribir. Ajusta el tamaño con el control de arriba, antes o durante la escritura.',
+    erase: '🧽 Haz clic o arrastra sobre un trazo, resaltado o texto para borrarlo al instante.',
+  };
 
   function updateHighlightHint() {
-    highlightHint.classList.toggle('hidden', currentTool !== 'highlight');
+    toolHint.innerHTML = TOOL_HINTS[currentTool] || '';
+    if (currentTool === 'text') {
+      sizeLabel.textContent = 'Tamaño texto';
+      sizeRange.min = 8;
+      sizeRange.max = 60;
+      sizeRange.value = currentTextSize;
+    } else {
+      sizeLabel.textContent = 'Grosor';
+      sizeRange.min = 1;
+      sizeRange.max = 40;
+      sizeRange.value = currentWidth;
+    }
   }
 
   // ---------------- Zoom ----------------
@@ -566,7 +764,13 @@
   // ---------------- Editor open/close wiring ----------------
   editorClose.addEventListener('click', closeEditor);
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !editor.classList.contains('hidden') && !activeTextEditor) closeEditor();
+    if (editor.classList.contains('hidden') || activeTextEditor) return;
+    if (e.key === 'Escape') { closeEditor(); return; }
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
   });
 
   // ---------------- Export ----------------
